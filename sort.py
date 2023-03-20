@@ -1,8 +1,7 @@
-import sys
-from pathlib import Path
-import shutil
-import re
 import os
+from pathlib import Path
+import re
+import shutil
 import sys
 
 
@@ -22,6 +21,7 @@ def create_folders(parent_folder, new_folders):
 def move_file(file, files_suffixes, new_folders_path):
 
     for key in files_suffixes:
+
         if file.suffix in files_suffixes[key]:
             return key, Path(shutil.move(file, new_folders_path[key])), True
 
@@ -37,6 +37,7 @@ def normalize(name):
     TRANS = {}
         
     for i, j in zip(CYRILLIC_SYMBOLS, TRANSLATION):
+
         TRANS[ord(i)] = j
         TRANS[ord(i.upper())] = j.upper()
 
@@ -93,6 +94,7 @@ def sorter(sort_folder, files_suffixes, new_folders_path, result_lists):
 def unpacking(archives_path):
 
     for item in archives_path.iterdir():
+        
         shutil.unpack_archive(item, item.parent / item.stem)
         os.remove(item)
 
