@@ -4,6 +4,8 @@ import re
 import shutil
 import sys
 
+from exceptions import TooManyWordsError, UnchoosedDirectoryError
+
 
 files_suffixes = {
     "archives": [".zip", ".gz", ".tar"],
@@ -13,6 +15,16 @@ files_suffixes = {
     "images": [".jpeg", ".png", ".jpg", ".svg"],
     "unknown": []
 }
+
+
+def error_handler(func):
+    def wrapper(*args):
+        try:
+            return func(*args)
+        except (TooManyWordsError, UnchoosedDirectoryError) as error:
+            print(error)
+            sys.exit()
+    return wrapper
 
 
 def create_folders(parent_folder, new_folders):
@@ -109,17 +121,15 @@ def unpacking(archives_path):
         os.remove(item)
 
 
+@error_handler
 def get_sortable_folder() -> Path:
 
     if len(sys.argv) > 2:
-        print("Error! Your folder's name should have only 1 word")
-        sys.exit()
+        raise TooManyWordsError
+    elif len(sys.argv) < 2:
+        raise UnchoosedDirectoryError
 
-    try:
-        sortable_folder = Path(sys.argv[1])
-    except IndexError:
-        print("Error! Choose a directory to sort")
-        sys.exit()
+    sortable_folder = Path(sys.argv[1])
 
     return sortable_folder
 
