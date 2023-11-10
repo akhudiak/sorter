@@ -5,6 +5,16 @@ import shutil
 import sys
 
 
+files_suffixes = {
+    "archives": [".zip", ".gz", ".tar"],
+    "video": [".avi", ".mp4", ".mov", ".mkv"],
+    "audio": [".mp3", ".ogg", ".wav", ".amr"],
+    "documents": [".doc", ".docx", ".txt", ".pdf", ".xlsx", ".pptx"],
+    "images": [".jpeg", ".png", ".jpg", ".svg"],
+    "unknown": []
+}
+
+
 def create_folders(parent_folder, new_folders):
 
     new_folders_path = {}
@@ -60,9 +70,9 @@ def print_result(result_lists):
         print("-" * 30)
 
 
-def sorter(sort_folder, files_suffixes, new_folders_path, result_lists):
+def sorter(sortable_folder, files_suffixes, new_folders_path, result_lists):
 
-    items = sort_folder.iterdir()
+    items = sortable_folder.iterdir()
 
     for item in items:
 
@@ -99,24 +109,26 @@ def unpacking(archives_path):
         os.remove(item)
 
 
-def main():
+def get_sortable_folder() -> Path:
+
+    if len(sys.argv) > 2:
+        print("Error! Your folder's name should have only 1 word")
+        sys.exit()
 
     try:
-        sort_folder = Path(sys.argv[1])
+        sortable_folder = Path(sys.argv[1])
     except IndexError:
         print("Error! Choose a directory to sort")
         sys.exit()
 
-    files_suffixes = {
-        "archives": [".zip", ".gz", ".tar"],
-        "video": [".avi", ".mp4", ".mov", ".mkv"],
-        "audio": [".mp3", ".ogg", ".wav", ".amr"],
-        "documents": [".doc", ".docx", ".txt", ".pdf", ".xlsx", ".pptx"],
-        "images": [".jpeg", ".png", ".jpg", ".svg"],
-        "unknown": []
-    }
+    return sortable_folder
 
-    new_folders_path = create_folders(sort_folder, files_suffixes.keys())
+
+def main():
+
+    sortable_folder = get_sortable_folder()
+
+    new_folders_path = create_folders(sortable_folder, files_suffixes.keys())
 
     result_lists = {
         "known extension": set(),
@@ -126,7 +138,7 @@ def main():
     for key in files_suffixes:
         result_lists[key] = []
 
-    result_lists = sorter(sort_folder, files_suffixes, new_folders_path, result_lists)
+    result_lists = sorter(sortable_folder, files_suffixes, new_folders_path, result_lists)
     
     print_result(result_lists)
 
