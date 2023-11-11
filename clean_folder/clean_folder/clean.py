@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 import shutil
 import sys
+from typing import Dict, List
 
 from exceptions import TooManyWordsError, UnchoosedDirectoryError
 
@@ -27,27 +28,27 @@ def error_handler(func):
     return wrapper
 
 
-def create_folders(parent_folder, new_folders):
+def create_folders(parent: Path, new_folder_names: List[str]) -> Dict[str, Path]:
 
-    new_folders_path = {}
+    new_folders: Dict[str, Path] = {}
 
-    for new_folder in new_folders:
+    for name in new_folder_names:
 
-        new_folder_path = parent_folder / new_folder
-        new_folder_path.mkdir()
-        new_folders_path[new_folder] = new_folder_path
+        new_folder: Path = parent / name
+        new_folder.mkdir()
+        new_folders[name] = new_folder
 
-    return new_folders_path
+    return new_folders
 
 
-def move_file(file, files_suffixes, new_folders_path):
+def move_file(file, files_suffixes, new_folders):
 
     for key in files_suffixes:
 
         if file.suffix in files_suffixes[key]:
-            return key, Path(shutil.move(file, new_folders_path[key])), True
+            return key, Path(shutil.move(file, new_folders[key])), True
 
-    return "unknown", Path(shutil.move(file, new_folders_path["unknown"])), False
+    return "unknown", Path(shutil.move(file, new_folders["unknown"])), False
 
 
 def normalize(name):
@@ -82,7 +83,7 @@ def print_result(result_lists):
         print("-" * 30)
 
 
-def sorter(sortable_folder, files_suffixes, new_folders_path, result_lists):
+def sorter(sortable_folder, files_suffixes, new_folders, result_lists):
 
     items = sortable_folder.iterdir()
 
@@ -90,7 +91,7 @@ def sorter(sortable_folder, files_suffixes, new_folders_path, result_lists):
 
         if item.is_file():
 
-            key, file, file_ext = move_file(item, files_suffixes, new_folders_path)
+            key, file, file_ext = move_file(item, files_suffixes, new_folders)
 
             renamed_file = f"{file.parent / normalize(file.stem)}{file.suffix}"
             file = file.rename(renamed_file)
@@ -105,9 +106,9 @@ def sorter(sortable_folder, files_suffixes, new_folders_path, result_lists):
             else:
                 result_lists["unknown extension"].add(item.suffix)
 
-        elif item not in new_folders_path.values():
+        elif item not in new_folders.values():
 
-            result_lists = sorter(item, files_suffixes, new_folders_path, result_lists)
+            result_lists = sorter(item, files_suffixes, new_folders, result_lists)
             item.rmdir()
 
     return result_lists
@@ -149,10 +150,10 @@ def create_folder_copy(folder: Path) -> Path:
 
 def main():
 
-    sortable_folder = get_sortable_folder()
-    sortable_folder_copy = create_folder_copy(sortable_folder)
+    sortable_folder: Path = get_sortable_folder()
+    sortable_folder_copy: Path = create_folder_copy(sortable_folder)
 
-    new_folders_path = create_folders(sortable_folder_copy, files_suffixes.keys())
+    new_folders: Dict[str, Path] = create_folders(sortable_folder_copy, files_suffixes.keys())
 
     result_lists = {
         "known extension": set(),
@@ -162,11 +163,11 @@ def main():
     for key in files_suffixes:
         result_lists[key] = []
 
-    result_lists = sorter(sortable_folder_copy, files_suffixes, new_folders_path, result_lists)
+    result_lists = sorter(sortable_folder_copy, files_suffixes, new_folders, result_lists)
     
     print_result(result_lists)
 
-    unpacking(new_folders_path["archives"])
+    unpacking(new_folders["archives"])
 
 
 if __name__ == "__main__":
