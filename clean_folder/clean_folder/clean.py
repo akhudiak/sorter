@@ -134,11 +134,25 @@ def get_sortable_folder() -> Path:
     return sortable_folder
 
 
+def create_folder_copy(folder: Path) -> Path:
+    
+    parent: Path = folder.parent
+    dst: Path = parent / (folder.stem + "_copy")
+
+    if dst.exists():
+        shutil.rmtree(dst)
+    
+    copy: Path = shutil.copytree(folder, dst)
+    
+    return copy
+    
+
 def main():
 
     sortable_folder = get_sortable_folder()
+    sortable_folder_copy = create_folder_copy(sortable_folder)
 
-    new_folders_path = create_folders(sortable_folder, files_suffixes.keys())
+    new_folders_path = create_folders(sortable_folder_copy, files_suffixes.keys())
 
     result_lists = {
         "known extension": set(),
@@ -148,7 +162,7 @@ def main():
     for key in files_suffixes:
         result_lists[key] = []
 
-    result_lists = sorter(sortable_folder, files_suffixes, new_folders_path, result_lists)
+    result_lists = sorter(sortable_folder_copy, files_suffixes, new_folders_path, result_lists)
     
     print_result(result_lists)
 
