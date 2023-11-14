@@ -27,7 +27,7 @@ TRANS = create_trans_table()
 
 
 SUFFIXES = {
-    "archives": [".zip", ".gz", ".tar"],
+    "archives": [".zip", ".tar"],
     "video": [".avi", ".mp4", ".mov", ".mkv"],
     "audio": [".mp3", ".ogg", ".wav", ".amr"],
     "documents": [".doc", ".docx", ".txt", ".pdf", ".xlsx", ".pptx"],
@@ -75,7 +75,7 @@ def normalize(name: str) -> str:
     return formatted_name
 
 
-def print_result(result_lists):
+def print_result(result_lists: Dict[str, List[str]]) -> None:
 
     for key in result_lists:
 
@@ -112,9 +112,9 @@ def sorter(sortable_folder: Path) -> Dict[str, List[str]]:
     return result_lists
 
 
-def unpacking(archives_path):
+def unpacking(archives: Path):
 
-    for item in archives_path.iterdir():
+    for item in archives.iterdir():
         
         shutil.unpack_archive(item, item.parent / item.stem)
         os.remove(item)
