@@ -3,12 +3,30 @@ from pathlib import Path
 import re
 import shutil
 import sys
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from exceptions import TooManyWordsError, UnchoosedDirectoryError
 
 
-files_suffixes = {
+CYRILLIC_SYMBOLS = "абвгдеёжзийклмнопрстуфхцчшщъыьэюяєіїґ"
+TRANSLATION = ("a", "b", "v", "g", "d", "e", "e", "j", "z", "i", "j", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u",
+            "f", "h", "ts", "ch", "sh", "sch", "", "y", "", "e", "yu", "ya", "je", "i", "ji", "g")
+
+def create_trans_table():
+
+    trans_table = {}
+        
+    for i, j in zip(CYRILLIC_SYMBOLS, TRANSLATION):
+
+        trans_table[ord(i)] = j
+        trans_table[ord(i.upper())] = j.upper()
+
+    return trans_table
+
+TRANS = create_trans_table()
+
+
+SUFFIXES = {
     "archives": [".zip", ".gz", ".tar"],
     "video": [".avi", ".mp4", ".mov", ".mkv"],
     "audio": [".mp3", ".ogg", ".wav", ".amr"],
@@ -16,6 +34,16 @@ files_suffixes = {
     "images": [".jpeg", ".png", ".jpg", ".svg"],
     "unknown": []
 }
+
+destination_folders: Dict[str, Path] = {}
+
+def create_folders(parent: Path) -> None:
+
+    for name in SUFFIXES.keys():
+
+        new_folder: Path = parent / name
+        new_folder.mkdir()
+        destination_folders[name] = new_folder
 
 
 def error_handler(func):
@@ -28,47 +56,23 @@ def error_handler(func):
     return wrapper
 
 
-def create_folders(parent: Path, new_folder_names: List[str]) -> Dict[str, Path]:
+def move_file(file: Path) -> Tuple[str, Path]:
 
-    new_folders: Dict[str, Path] = {}
+    for folder in SUFFIXES:
 
-    for name in new_folder_names:
+        if file.suffix in SUFFIXES[folder]:
+            return folder, Path(shutil.move(file, destination_folders[folder]))
 
-        new_folder: Path = parent / name
-        new_folder.mkdir()
-        new_folders[name] = new_folder
-
-    return new_folders
+    return "unknown", Path(shutil.move(file, destination_folders["unknown"]))
 
 
-def move_file(file, files_suffixes, new_folders):
+def normalize(name: str) -> str:
 
-    for key in files_suffixes:
+    translated_name = name.translate(TRANS)
 
-        if file.suffix in files_suffixes[key]:
-            return key, Path(shutil.move(file, new_folders[key])), True
+    formatted_name = re.sub("\W", "_", translated_name)
 
-    return "unknown", Path(shutil.move(file, new_folders["unknown"])), False
-
-
-def normalize(name):
-
-    CYRILLIC_SYMBOLS = "абвгдеёжзийклмнопрстуфхцчшщъыьэюяєіїґ"
-    TRANSLATION = ("a", "b", "v", "g", "d", "e", "e", "j", "z", "i", "j", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u",
-                "f", "h", "ts", "ch", "sh", "sch", "", "y", "", "e", "yu", "ya", "je", "i", "ji", "g")
-
-    TRANS = {}
-        
-    for i, j in zip(CYRILLIC_SYMBOLS, TRANSLATION):
-
-        TRANS[ord(i)] = j
-        TRANS[ord(i.upper())] = j.upper()
-
-    trans_name = name.translate(TRANS)
-
-    name = re.sub("\W", "_", trans_name)
-
-    return name
+    return formatted_name
 
 
 def print_result(result_lists):
@@ -83,33 +87,27 @@ def print_result(result_lists):
         print("-" * 30)
 
 
-def sorter(sortable_folder, files_suffixes, new_folders, result_lists):
+def sorter(sortable_folder: Path) -> Dict[str, List[str]]:
 
-    items = sortable_folder.iterdir()
+    result_lists: Dict[str, List[str]] = {}
+
+    items = [i for i in sortable_folder.rglob("*") if i.is_file()]
 
     for item in items:
 
-        if item.is_file():
+        dst_folder, file = move_file(item)
 
-            key, file, file_ext = move_file(item, files_suffixes, new_folders)
+        renamed_file = f"{file.parent / normalize(file.stem)}{file.suffix}"
+        file = file.rename(renamed_file)
 
-            renamed_file = f"{file.parent / normalize(file.stem)}{file.suffix}"
-            file = file.rename(renamed_file)
+        try:
+            result_lists[dst_folder].append(file.name)
+        except KeyError:
+            result_lists[dst_folder] = [file.name]
 
-            try:
-                result_lists[key].append(file.name)
-            except KeyError:
-                result_lists[key] = file.name
-
-            if file_ext:
-                result_lists["known extension"].add(item.suffix)
-            else:
-                result_lists["unknown extension"].add(item.suffix)
-
-        elif item not in new_folders.values():
-
-            result_lists = sorter(item, files_suffixes, new_folders, result_lists)
-            item.rmdir()
+    for folder in sortable_folder.iterdir():
+        if folder not in destination_folders.values():
+            shutil.rmtree(folder)
 
     return result_lists
 
@@ -150,24 +148,16 @@ def create_folder_copy(folder: Path) -> Path:
 
 def main():
 
-    sortable_folder: Path = get_sortable_folder()
-    sortable_folder_copy: Path = create_folder_copy(sortable_folder)
+    sortable_folder = get_sortable_folder()
+    sortable_folder_copy = create_folder_copy(sortable_folder)
+    
+    create_folders(sortable_folder_copy)
 
-    new_folders: Dict[str, Path] = create_folders(sortable_folder_copy, files_suffixes.keys())
-
-    result_lists = {
-        "known extension": set(),
-        "unknown extension": set()
-    }
-
-    for key in files_suffixes:
-        result_lists[key] = []
-
-    result_lists = sorter(sortable_folder_copy, files_suffixes, new_folders, result_lists)
+    result_lists = sorter(sortable_folder_copy)
     
     print_result(result_lists)
 
-    unpacking(new_folders["archives"])
+    unpacking(destination_folders["archives"])
 
 
 if __name__ == "__main__":
