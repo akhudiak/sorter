@@ -31,7 +31,7 @@ SUFFIXES = {
     "video": [".avi", ".mp4", ".mov", ".mkv"],
     "audio": [".mp3", ".ogg", ".wav", ".amr"],
     "documents": [".doc", ".docx", ".txt", ".pdf", ".xlsx", ".pptx"],
-    "images": [".jpeg", ".png", ".jpg", ".svg"],
+    "images": [".jpeg", ".JPG", ".png", ".jpg", ".svg"],
     "unknown": []
 }
 
@@ -95,7 +95,10 @@ def sorter(sortable_folder: Path) -> Dict[str, List[str]]:
 
     for item in items:
 
-        dst_folder, file = move_file(item)
+        try:
+            dst_folder, file = move_file(item)
+        except shutil.Error:
+            continue
 
         renamed_file = f"{file.parent / normalize(file.stem)}{file.suffix}"
         file = file.rename(renamed_file)
