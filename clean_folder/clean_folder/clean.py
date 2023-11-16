@@ -1,9 +1,9 @@
+from concurrent.futures import ThreadPoolExecutor
 import os
 from pathlib import Path
-import re
 import shutil
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict
 
 from exceptions import TooManyWordsError, UnchoosedDirectoryError
 
@@ -56,66 +56,17 @@ def error_handler(func):
     return wrapper
 
 
-def move_file(file: Path) -> Tuple[str, Path]:
+def move_file(file: Path) -> None:
 
     for folder in SUFFIXES:
 
         if file.suffix in SUFFIXES[folder]:
-            return folder, Path(shutil.move(file, destination_folders[folder]))
+            Path(shutil.move(file, destination_folders[folder]))
 
-    return "unknown", Path(shutil.move(file, destination_folders["unknown"]))
-
-
-def normalize(name: str) -> str:
-
-    translated_name = name.translate(TRANS)
-
-    formatted_name = re.sub("\W", "_", translated_name)
-
-    return formatted_name
+    Path(shutil.move(file, destination_folders["unknown"]))
 
 
-def print_result(result_lists: Dict[str, List[str]]) -> None:
-
-    for key in result_lists:
-
-        print(key.upper())
-
-        for val in result_lists[key]:
-            print(val)
-
-        print("-" * 30)
-
-
-def sorter(sortable_folder: Path) -> Dict[str, List[str]]:
-
-    result_lists: Dict[str, List[str]] = {}
-
-    items = [i for i in sortable_folder.rglob("*") if i.is_file()]
-
-    for item in items:
-
-        try:
-            dst_folder, file = move_file(item)
-        except shutil.Error:
-            continue
-
-        renamed_file = f"{file.parent / normalize(file.stem)}{file.suffix}"
-        file = file.rename(renamed_file)
-
-        try:
-            result_lists[dst_folder].append(file.name)
-        except KeyError:
-            result_lists[dst_folder] = [file.name]
-
-    for folder in sortable_folder.iterdir():
-        if folder not in destination_folders.values():
-            shutil.rmtree(folder)
-
-    return result_lists
-
-
-def unpacking(archives: Path):
+def unpacking(archives: Path) -> None:
 
     for item in archives.iterdir():
         
@@ -156,9 +107,14 @@ def main():
     
     create_folders(sortable_folder_copy)
 
-    result_lists = sorter(sortable_folder_copy)
-    
-    print_result(result_lists)
+    files = [i for i in sortable_folder_copy.rglob("*") if i.is_file()]
+
+    with ThreadPoolExecutor(max_workers=40) as executor:
+        executor.map(move_file, files)
+
+    for folder in sortable_folder_copy.iterdir():
+        if folder not in destination_folders.values():
+            shutil.rmtree(folder)
 
     unpacking(destination_folders["archives"])
 
