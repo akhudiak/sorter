@@ -1,7 +1,9 @@
 from aiopath import AsyncPath
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import os
 from pathlib import Path
+import re
 import shutil
 import sys
 from typing import Dict
@@ -36,15 +38,24 @@ SUFFIXES = {
     "unknown": []
 }
 
-destination_folders: Dict[str, Path] = {}
+destination_folders: Dict[str, AsyncPath] = {}
 
-def create_folders(parent: Path) -> None:
+async def create_folders(parent: AsyncPath) -> None:
 
     for name in SUFFIXES.keys():
 
-        new_folder: Path = parent / name
-        new_folder.mkdir()
+        new_folder: AsyncPath = parent / name
+        await new_folder.mkdir()
         destination_folders[name] = new_folder
+
+
+def normalize(name: str) -> str:
+
+    translated_name = name.translate(TRANS)
+
+    formatted_name = re.sub("\W", "_", translated_name)
+
+    return formatted_name
 
 
 def error_handler(func):
@@ -57,68 +68,71 @@ def error_handler(func):
     return wrapper
 
 
-def move_file(file: Path) -> None:
+async def move_file(file: AsyncPath) -> None:
 
     for folder in SUFFIXES:
 
         if file.suffix in SUFFIXES[folder]:
-            Path(shutil.move(file, destination_folders[folder]))
+            new_name = f"{destination_folders[folder] / normalize(file.stem)}{file.suffix}"
+            return await file.rename(new_name)
 
-    Path(shutil.move(file, destination_folders["unknown"]))
+    new_name = f"{destination_folders['unknown'] / normalize(file.stem)}{file.suffix}"
+    return await file.rename(new_name)
 
 
-def unpacking(archives: Path) -> None:
+async def unpacking(archives: AsyncPath) -> None:
 
-    for item in archives.iterdir():
+    async for item in archives.iterdir():
         
         shutil.unpack_archive(item, item.parent / item.stem)
         os.remove(item)
 
 
 @error_handler
-def get_sortable_folder() -> Path:
+def get_sortable_folder() -> AsyncPath:
 
     if len(sys.argv) > 2:
         raise TooManyWordsError
     elif len(sys.argv) < 2:
         raise UnchoosedDirectoryError
 
-    sortable_folder = Path(sys.argv[1])
+    sortable_folder = AsyncPath(sys.argv[1])
 
     return sortable_folder
 
 
-def create_folder_copy(folder: Path) -> Path:
+async def create_folder_copy(folder: AsyncPath) -> AsyncPath:
     
-    parent: Path = folder.parent
-    dst: Path = parent / (folder.stem + "_copy")
+    parent: AsyncPath = folder.parent
+    dst: AsyncPath = parent / (folder.stem + "_copy")
 
-    if dst.exists():
+    if await dst.exists():
         shutil.rmtree(dst)
     
-    copy: Path = shutil.copytree(folder, dst)
+    copy = AsyncPath(shutil.copytree(folder, dst))
     
     return copy
     
 
-def main():
+async def main():
 
     sortable_folder = get_sortable_folder()
-    sortable_folder_copy = create_folder_copy(sortable_folder)
+
+    sortable_folder_copy = await create_folder_copy(sortable_folder)
     
-    create_folders(sortable_folder_copy)
+    await create_folders(sortable_folder_copy)
 
-    files = [i for i in sortable_folder_copy.rglob("*") if i.is_file()]
+    files = [item async for item in sortable_folder_copy.rglob("*") if await item.is_file()]
 
-    with ThreadPoolExecutor(max_workers=40) as executor:
-        executor.map(move_file, files)
+    for file in files:
+        await move_file(file)
 
-    for folder in sortable_folder_copy.iterdir():
+    async for folder in sortable_folder_copy.iterdir():
         if folder not in destination_folders.values():
             shutil.rmtree(folder)
 
-    unpacking(destination_folders["archives"])
+    await unpacking(destination_folders["archives"])
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
